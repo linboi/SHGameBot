@@ -39,6 +39,7 @@ class SecretHitlerGame:
 		self.libTrackProgress = 0
 		self.fascTrackProgress = 0
 		self.failedElections = 0
+		self.presidentTracker = 0
 
 	def setTeams(self, players):
 		PlayerData = namedtuple('PlayerData', ['discordUser', 'team', 'isHitler', 'termLimited'])
@@ -56,9 +57,50 @@ class SecretHitlerGame:
 	# goes through each round.
 	
 	async def gameLoop(self):
+		pres = self.players[self.presidentTracker]
+		self.presidentTracker = (self.presidentTracker + 1) % len(self.players) #President moves forward one by one and loops
 		chanc = await chooseChancellor(pres)
+		# voting logic goes here
+		await self.legislativeSession(pres, chanc)
 
-	#async def chooseChancellor(self, pres):
+
+	async def chooseChancellor(self, pres):
+		chancChoiceMsg = await self.publicChannel.send("Choose a chancellor by mentioning a player:\n" + self.showTable(pres))
+		def check(message):
+			print(str(message.mentions) + "this ")
+			print(str(len(message.mentions) != 1))
+			print(str(message.author != pres.discordUser))
+			print(str(message.channel != self.publicChannel))
+			if len(message.mentions) != 1 or message.author != pres.discordUser or message.channel != self.publicChannel:
+				return False
+			return True
+		# Make sure the president has made a valid choice
+		valid = False
+		while not valid:
+			message = await self.client.wait_for('message', check=check)
+			isPlayerInGame = False
+			for p in self.players:
+				print(p)
+				if p.discordUser == message.mentions[0]:
+					chosenPlayer = p
+					isPlayerInGame = True
+			if not isPlayerInGame:
+				await self.publicChannel.send("Couldn't find player " + message.mentions[0] + " in this game")
+			elif chosenPlayer.termLimited:
+				await self.publicChannel.send("Cannot choose a term limited player as chancellor")
+			elif chosenPlayer == pres:
+				await self.publicChannel.send("Cannot choose yourself")
+			else:
+				valid = True
+		return chosenPlayer
+					
+		# Could use reactions instead of mentions for chancellor choice
+		#REACTIONS = ['0️⃣', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟']
+		#i = 1
+		#for p in self.players:
+			#await chancChoiceMsg.add_reaction(REACTIONS[i])
+			#i += 1
+
 
 
 	async def legislativeSession(self, pres, chanc):
@@ -70,7 +112,7 @@ class SecretHitlerGame:
 			await presMessage.add_reaction('🇫')
 
 		def check(reaction, user):
-			return user == pres and reaction.message.id == presMessage.id and ((reaction.emoji == '🇱' and cards.__contains__('F')) or (reaction.emoji == '🇫' and cards.__contains__('F')))
+			return user == pres.discordUser and reaction.message.id == presMessage.id and ((reaction.emoji == '🇱' and cards.__contains__('F')) or (reaction.emoji == '🇫' and cards.__contains__('F')))
 
 		reaction, user = await self.client.wait_for('reaction_add', check=check)
 		
@@ -79,7 +121,7 @@ class SecretHitlerGame:
 		elif reaction.emoji == '🇫':
 			cards.remove('F')
 
-		chancMessage = await chanc.discordUser.send("The cards you have been given by the president " + pres.display_name + " are: " + str(cards) + "\n Choose a card to *discard*.")
+		chancMessage = await chanc.discordUser.send("The cards you have been given by the president " + pres.discordUser.display_name + " are: " + str(cards) + "\n Choose a card to *discard*.")
 		if cards.__contains__('L'):
 			await chancMessage.add_reaction('🇱')
 		if cards.__contains__('F'):
@@ -120,9 +162,14 @@ class SecretHitlerGame:
 		msg += ''
 		return msg
 
-	def showTable(self):
+	def showTable(self, pres):
 		msg = '```'
+		i = 1
 		for p in self.players:
-			msg += p.discordUser.display_name
+			msg += str(i) + ". " + p.discordUser.display_name + (" ❌" if p.termLimited else "")
+			if(p == pres.discordUser):
+				msg += "< President"
+			msg += "\n"
+			i += 1
 		msg += '```'
 		return msg
