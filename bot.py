@@ -23,8 +23,8 @@ class MyClient(discord.Client):
 			#players = startPlayer.voice.channel.members
 			players = [startPlayer, startPlayer, startPlayer, startPlayer, startPlayer, startPlayer, startPlayer, startPlayer, startPlayer]
 			#try:
-			game = SecretHitlerGame(players, message.channel, client)
-			await game.chooseChancellor(game.players[1])
+			game = SecretHitlerGame(message.guild.members[0:8], message.channel, client)
+			await game.chooseChancellor(game.players[6])
 			#except Exception:
 			#	await message.channel.send("Player count must be greater than 4 and less than 11")
 			#else:

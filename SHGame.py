@@ -13,7 +13,7 @@ class SecretHitlerGame:
 			#raise Exception("Wrong player count")
 		
 		self.players = self.setTeams(players) # One player is randomly assigned hitler, the rest are randomly assigned fascist and liberal roles
-		shuffle(self.players) # Players are shuffled again so that their order in the table doesn't give away their team
+		shuffle(self.players) # Players are shuffled again so that their order in the table doesn't reveal their team
 		self.publicChannel = publicChannel
 		self.client = client
 		self.deck = Deck(6, 11)
@@ -40,6 +40,7 @@ class SecretHitlerGame:
 		self.fascTrackProgress = 0
 		self.failedElections = 0
 		self.presidentTracker = 0
+		self.vetoEnabled = False
 
 	def setTeams(self, players):
 		PlayerData = namedtuple('PlayerData', ['discordUser', 'team', 'isHitler', 'termLimited'])
@@ -49,28 +50,65 @@ class SecretHitlerGame:
 		for i in range(((len(players) - 5)//2 + 1)): # Weird formula for fascist count
 			resultantPlayers.append(PlayerData(players[i], 'F', False, False))
 		for i in range(((len(players) - 5)//2 + 3 + (len(players)-5)%2)): # Weird formula for liberal count
-			resultantPlayers.append(PlayerData(players[i], 'L', False, False))
+			resultantPlayers.append(PlayerData(players[((len(players) - 5)//2 + 1)+i], 'L', False, False))
 		return resultantPlayers
 
 	################# GAME LOOP #################
 	# Here is the standard loop that the game
 	# goes through each round.
 	
-	async def gameLoop(self):
-		pres = self.players[self.presidentTracker]
-		self.presidentTracker = (self.presidentTracker + 1) % len(self.players) #President moves forward one by one and loops
+	async def gameLoop(self, pres=None):
+		if pres is None: # president will be given for a special election
+			pres = self.players[self.presidentTracker]
+			self.presidentTracker = (self.presidentTracker + 1) % len(self.players) #President moves forward one by one and loops
 		chanc = await chooseChancellor(pres)
 		# voting logic goes here
-		await self.legislativeSession(pres, chanc)
 
+		# Hitler is enacted chancellor and at least 3 fascist policies are enacted, fascists win
+		if(chanc.isHitler and (self.fascTrackProgress > 2)):
+			self.gameOver('F')
+
+		chosenCard = await self.legislativeSession(pres, chanc)
+		for p in self.players:
+			p.termLimited = False
+		pres.termLimited = True
+		chanc.termLimited = True
+		if chosenCard == 'F':
+			self.fascTrackProgress += 1
+			if(self.fascTrackProgress == 4):
+				self.vetoEnabled = True
+			elif(self.fascTrackProgress == 5):
+				await self.gameOver('F')
+			else:
+				await self.usePower(pres, self.fascTrack[self.fascTrackProgress])
+		elif chosenCard == 'L':
+			self.libTrackProgress += 1
+			if(self.libTrackProgress == 4):
+				await self.gameOver('L')
+			else:
+				await self.usePower(pres, self.libTrack[self.libTrackProgress])
+		else:
+			await self.gameLoop()		# This will run if a veto is called, we do the regular game loop again moving the president forward
+
+	async def usePower(self, pres, power):
+		nextPres = None		# in all cases except special election, this will regularly move the president forward one spot
+		if power == "INSPECT":	# Peek a player's party membership card
+			player = await self.choosePlayer(pres, True)
+			await pres.send(str(player.discordUser.display_name) + "'s party membership is " + player.team)
+		elif power == "PICKPRESIDENT":
+			player = await self.choosePlayer(pres, True)
+			nextPres = player	# Start a special election with the chosen player
+		elif power == "PEEKCARDS":	# Peek the top 3 cards of the deck
+			await pres.send(str(self.deck.peek()) + " are the top 3 cards of the deck.")
+		elif power == "KILL": 	# The president chooses a player to kill
+			player = await self.choosePlayer(pres, True)
+			self.players.remove(player)
+		# Maybe put 'FWIN' and 'LWIN' here instead of being part of gameLoop()
+		await gameLoop(nextPres)
 
 	async def chooseChancellor(self, pres):
-		chancChoiceMsg = await self.publicChannel.send("Choose a chancellor by mentioning a player:\n" + self.showTable(pres))
+		chancChoiceMsg = await self.publicChannel.send(pres.discordUser.display_name + " choose a chancellor by mentioning a player(with @username):\n" + self.showTable(pres))
 		def check(message):
-			print(str(message.mentions) + "this ")
-			print(str(len(message.mentions) != 1))
-			print(str(message.author != pres.discordUser))
-			print(str(message.channel != self.publicChannel))
 			if len(message.mentions) != 1 or message.author != pres.discordUser or message.channel != self.publicChannel:
 				return False
 			return True
@@ -101,7 +139,23 @@ class SecretHitlerGame:
 			#await chancChoiceMsg.add_reaction(REACTIONS[i])
 			#i += 1
 
-
+	async def choosePlayer(self, chooser, public):
+		# All current powers are public but whatever this could come in useful
+		if public:
+			channel = self.publicChannel
+		else:
+			channel = chooser
+		choiceMsg = await channel.send(chooser.discordUser.display_name + " choose a player by mentioning them (with @username)")
+		def check(message):	#find a message that the chooser mentions one player, and that player is not themselves
+			if message.author!=chooser or len(message.mentions)!=1 or message.mentions[0]==chooser:
+				return False
+			isInGame = False
+			for p in self.players:
+				if p == message.mentions[0]:
+					isInGame = True
+			return isInGame
+		message = await client.wait_for('message', check=check)
+		return message.mentions[0]
 
 	async def legislativeSession(self, pres, chanc):
 		cards = [self.deck.deal(), self.deck.deal(), self.deck.deal()]
@@ -140,6 +194,12 @@ class SecretHitlerGame:
 		if(self.deck.cardsLeft() < 3):
 			this.deck.shuffle()
 
+		return cards[0]
+
+	# When the game ends, add logic in here to delete the game from outer dictionaries keeping track of running games.
+	async def gameOver(self, team):
+		self.publicChannel.send("Game over, " + ("fascists" if team=='F' else "liberals") + " win.")
+
 	# functions for showing the current game state to players
 	def showTrack(self):
 		msg = ''
@@ -167,8 +227,8 @@ class SecretHitlerGame:
 		i = 1
 		for p in self.players:
 			msg += str(i) + ". " + p.discordUser.display_name + (" ❌" if p.termLimited else "")
-			if(p == pres.discordUser):
-				msg += "< President"
+			if(p == pres):
+				msg += "\t< President"
 			msg += "\n"
 			i += 1
 		msg += '```'
