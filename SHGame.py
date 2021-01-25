@@ -102,6 +102,8 @@ class SecretHitlerGame:
 			await pres.send(str(self.deck.peek()) + " are the top 3 cards of the deck.")
 		elif power == "KILL": 	# The president chooses a player to kill
 			player = await self.choosePlayer(pres, True)
+			if player.isHitler:
+				self.gameOver('L') 	# If Hitler is killed, the liberals win
 			self.players.remove(player)
 		# Maybe put 'FWIN' and 'LWIN' here instead of being part of gameLoop()
 		await gameLoop(nextPres)
