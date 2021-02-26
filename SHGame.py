@@ -239,7 +239,7 @@ class SecretHitlerGame:
 		message = await self.client.wait_for('message', check=check)
 		chosenPlayer = None
 		for p in self.players:
-			if p.discordUser == message.mentions[0]
+			if p.discordUser == message.mentions[0]:
 				chosenPlayer = p
 		return chosenPlayer
 
@@ -265,7 +265,7 @@ class SecretHitlerGame:
 
 		#canVeto = self.vetoEnabled
 
-		chancMessage = await chanc.discordUser.send("The cards you have been given by the president " + pres.discordUser.display_name + " are: " + str(cards) + "\n Choose a card to *discard*." + ("Use ❌ to suggest a veto. (VETO IS UNFINISHED)" if self.vetoEnabled else "")
+		chancMessage = await chanc.discordUser.send("The cards you have been given by the president " + pres.discordUser.display_name + " are: " + str(cards) + "\n Choose a card to *discard*." + ("Use ❌ to suggest a veto. (VETO IS UNFINISHED)" if self.vetoEnabled else ""))
 		if cards.__contains__('L'):
 			await chancMessage.add_reaction('🇱')
 		if cards.__contains__('F'):
