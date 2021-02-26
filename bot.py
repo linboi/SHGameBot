@@ -20,11 +20,16 @@ class MyClient(discord.Client):
 			return
 		if(message.content.startswith("!start")):
 			startPlayer = await message.guild.fetch_member(message.author.id)
-			#players = startPlayer.voice.channel.members
-			players = [startPlayer, startPlayer, startPlayer, startPlayer, startPlayer, startPlayer, startPlayer, startPlayer, startPlayer]
+			players = startPlayer.voice.channel.members
+			#players = [startPlayer, startPlayer, startPlayer, startPlayer, startPlayer, startPlayer, startPlayer, startPlayer, startPlayer]
 			#try:
-			game = SecretHitlerGame(message.guild.members[0:8], message.channel, client)
-			await game.chooseChancellor(game.players[6])
+			game = SecretHitlerGame(message.channel, client)
+			#print(message.guild.members[0:8])
+			await game.startGame(players)
+			#await game.vote(game.players[0], game.players[1])
+			#await message.channel.send(game.showVotes((game.players[0:5]), (game.players[5:7])))
+			#print(game.players)
+			#await game.chooseChancellor(game.players[6])
 			#except Exception:
 			#	await message.channel.send("Player count must be greater than 4 and less than 11")
 			#else:
