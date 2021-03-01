@@ -97,6 +97,7 @@ class SecretHitlerGame:
 			await self.publicChannel.send(self.showVotes(yesVotes, noVotes))
 			if len(yesVotes) > len(noVotes):
 				electionSuccess = True
+				self.failedElections = 0
 			else:
 				pres = self.players[self.presidentTracker]
 				self.presidentTracker = (self.presidentTracker + 1) % len(self.players) #President moves forward one by one and loops
@@ -122,6 +123,7 @@ class SecretHitlerGame:
 		# Hitler is enacted chancellor and at least 3 fascist policies are enacted, fascists win
 		if(chanc.isHitler and (self.fascTrackProgress > 2)):
 			await self.gameOver('F')
+			return
 
 		chosenCard = await self.legislativeSession(pres, chanc)
 		for p in self.players:
@@ -159,8 +161,10 @@ class SecretHitlerGame:
 			self.players.remove(player)
 		elif power == "LWIN":
 			await self.gameOver('L')
+			return
 		elif power == "FWIN":
 			await self.gameOver('F')
+			return
 		# Maybe put 'FWIN' and 'LWIN' here instead of being part of gameLoop()
 		await self.gameLoop(nextPres)
 
@@ -246,8 +250,9 @@ class SecretHitlerGame:
 	async def legislativeSession(self, pres, chanc):
 		if(self.deck.cardsLeft() < 3):
 			self.deck.shuffle()
+			self.publicChannel.send("The deck has been shuffled")
 		cards = [self.deck.deal(), self.deck.deal(), self.deck.deal()]
-		presMessage = await pres.discordUser.send("The cards you have been dealt are: " + str(cards) + "\n Choose a card to *discard*.")
+		presMessage = await pres.discordUser.send("The cards you have been dealt are: " + str(cards) + "\n Choose a card to ***discard***.")
 		if cards.__contains__('L'):
 			await presMessage.add_reaction('🇱')
 		if cards.__contains__('F'):
