@@ -32,4 +32,6 @@ class Deck:
 		return cardType
 
 	def pop(self):
+		if self.place == len(self.deck):
+			self.shuffle()
 		return self.deck.pop(self.place)
