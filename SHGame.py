@@ -47,14 +47,20 @@ class SecretHitlerGame:
 				await p.discordUser.send("You are a liberal.")
 		return resultantPlayers
 
-	async def startGame(self, players):
+	async def startGame(self, players, REBALANCE=True):
 		if len(players) < 5 or len(players) > 10:
 			print('Game cannot be started with more than 10 or fewer than 5 players')
 			raise Exception("Wrong player count")
 		self.players = await self.setTeams(players) # One player is randomly assigned hitler, the rest are randomly assigned fascist and liberal roles
 		shuffle(self.players) # Players are shuffled again so that their order in the table doesn't reveal their team
 		#print("self.players" + self.players)
-		self.deck = Deck(6, 11)
+
+		if REBALANCE and len(players) == 7:
+			self.deck = Deck(6, 10)
+		elif REBALANCE and len(players) == 9:
+			self.deck = Deck(6, 9)
+		else:
+			self.deck = Deck(6, 11)
 		# Special power name/emoji relation
 		self.powers = {
 			"NONE":"⬜",
@@ -66,7 +72,7 @@ class SecretHitlerGame:
 			"LWIN":"🕊"
 		}
 		# Set tracks
-		self.libTrack = ["NONE", "NONE", "NONE", "NONE", "NONE", "LWIN"]
+		self.libTrack = ["NONE", "NONE", "NONE", "NONE", "LWIN"]
 		if (len(players) < 7):	# The fascist track changes depending on the number of players in the game
 			self.fascTrack = ["NONE", "NONE", "PEEKCARDS", "KILL", "KILL", "FWIN"]
 		elif (len(players) < 9):
@@ -75,7 +81,10 @@ class SecretHitlerGame:
 			self.fascTrack = ["INSPECT", "INSPECT", "PICKPRESIDENT", "KILL", "KILL", "FWIN"]
 		# set these to start game values
 		self.libTrackProgress = 0
-		self.fascTrackProgress = 0
+		if REBALANCE and (len(self.players) == 6):
+			self.fascTrackProgress = 1
+		else:
+			self.fascTrackProgress = 0
 		self.failedElections = 0
 		self.presidentTracker = 0
 		self.vetoEnabled = False
@@ -158,6 +167,13 @@ class SecretHitlerGame:
 			player = await self.choosePlayer(pres, True)
 			if player.isHitler:
 				await self.gameOver('L') 	# If Hitler is killed, the liberals win
+			# This is a temp fix for a bug, marking players as dead rather than removing them is probably the right solution
+			idxOfRemovedPlayer = 0
+			for idx, p in enumerate(self.players):
+				if p == player:
+					idxOfRemovedPlayer = idx
+			if idxOfRemovedPlayer >= self.presidentTracker:
+				self.presidentTracker = self.presidentTracker - 1
 			self.players.remove(player)
 		elif power == "LWIN":
 			await self.gameOver('L')
@@ -250,7 +266,7 @@ class SecretHitlerGame:
 	async def legislativeSession(self, pres, chanc):
 		if(self.deck.cardsLeft() < 3):
 			self.deck.shuffle()
-			self.publicChannel.send("The deck has been shuffled")
+			await self.publicChannel.send("The deck has been shuffled")
 		cards = [self.deck.deal(), self.deck.deal(), self.deck.deal()]
 		presMessage = await pres.discordUser.send("The cards you have been dealt are: " + str(cards) + "\n Choose a card to ***discard***.")
 		if cards.__contains__('L'):
@@ -268,29 +284,39 @@ class SecretHitlerGame:
 		elif reaction.emoji == '🇫':
 			cards.remove('F')
 
-		#canVeto = self.vetoEnabled
+		canVeto = self.vetoEnabled
 
-		chancMessage = await chanc.discordUser.send("The cards you have been given by the president " + pres.discordUser.display_name + " are: " + str(cards) + "\n Choose a card to *discard*." + ("Use ❌ to suggest a veto. (VETO IS UNFINISHED)" if self.vetoEnabled else ""))
-		if cards.__contains__('L'):
-			await chancMessage.add_reaction('🇱')
-		if cards.__contains__('F'):
-			await chancMessage.add_reaction('🇫')
-		if self.vetoEnabled:
-			await chancMessage.add_reaction('❌')
+		for i in range(2):
+			chancMessage = await chanc.discordUser.send("The cards you have been given by the president " + pres.discordUser.display_name + " are: " + str(cards) + "\n Choose a card to ***KEEP***." + ("Use ❌ to suggest a veto." if canVeto else ""))
+			if cards.__contains__('L'):
+				await chancMessage.add_reaction('🇱')
+			if cards.__contains__('F'):
+				await chancMessage.add_reaction('🇫')
+			if canVeto:
+				await chancMessage.add_reaction('❌')
 
-		def check(reaction, user):
-			# This line is really long, maybe i should split it but I'm not sure it would be more readable
-			# It's a simple check that the reaction is on the right message, is from the right user, and is of a valid emoji
-			return user == chanc.discordUser and reaction.message.id == chancMessage.id and ((reaction.emoji == '🇱' and cards.__contains__('L')) or (reaction.emoji == '🇫' and cards.__contains__('F')) or (reaction.emoji == '❌' and self.vetoEnabled))
+			def check(reaction, user):
+				# This line is really long, maybe i should split it but I'm not sure it would be more readable
+				# It's a simple check that the reaction is on the right message, is from the right user, and is of a valid emoji
+				return user == chanc.discordUser and reaction.message.id == chancMessage.id and ((reaction.emoji == '🇱' and cards.__contains__('L')) or (reaction.emoji == '🇫' and cards.__contains__('F')) or (reaction.emoji == '❌' and canVeto))
 
-		reaction, user = await self.client.wait_for('reaction_add', check=check)
-		
-		if reaction.emoji == '🇱':
-			cards.remove('L')
-		elif reaction.emoji == '🇫':
-			cards.remove('F')
-		elif reaction.emoji == '❌':
-			return 'V'
+			reaction, user = await self.client.wait_for('reaction_add', check=check)
+			
+			if reaction.emoji == '🇱':
+				return 'L'
+			elif reaction.emoji == '🇫':
+				return 'F'
+			elif reaction.emoji == '❌':
+				vetoMessage = await publicChannel.send("A veto has been suggested by the chancellor, President " + pres.discordUser.display_name + " must decide.")
+				await vetoMessage.add_reaction('👍')
+				await vetoMessage.add_reaction('👎')
+				def check(reaction, user):
+					return vetoMessage == reaction.message and (reaction.emoji == '👍' or reaction.emoji == '👎') and user == pres.discordUser
+				reaction, user = await self.client.wait_for('reaction_add', check=check)
+				if(reaction.emoji == '👍'):
+					return 'V'
+				elif(reaction.emoji == '👎'):
+					canVeto = False
 
 		return cards[0]
 
