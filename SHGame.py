@@ -167,13 +167,13 @@ class SecretHitlerGame:
 			player = await self.choosePlayer(pres, True)
 			if player.isHitler:
 				await self.gameOver('L') 	# If Hitler is killed, the liberals win
-			# This is a temp fix for a bug, marking players as dead rather than removing them is probably the right solution
-			idxOfRemovedPlayer = 0
-			for idx, p in enumerate(self.players):
-				if p == player:
-					idxOfRemovedPlayer = idx
-			if idxOfRemovedPlayer >= self.presidentTracker:
-				self.presidentTracker = self.presidentTracker - 1
+			## This is a temp fix for a bug, marking players as dead rather than removing them is probably the right solution
+			#idxOfRemovedPlayer = 0
+			#for idx, p in enumerate(self.players):
+			#	if p == player:
+			#		idxOfRemovedPlayer = idx
+			#if idxOfRemovedPlayer >= self.presidentTracker:
+			#	self.presidentTracker = self.presidentTracker - 1
 			self.players.remove(player)
 		elif power == "LWIN":
 			await self.gameOver('L')
@@ -307,7 +307,7 @@ class SecretHitlerGame:
 			elif reaction.emoji == '🇫':
 				return 'F'
 			elif reaction.emoji == '❌':
-				vetoMessage = await publicChannel.send("A veto has been suggested by the chancellor, President " + pres.discordUser.display_name + " must decide.")
+				vetoMessage = await self.publicChannel.send("A veto has been suggested by the chancellor, President " + pres.discordUser.display_name + " must decide.")
 				await vetoMessage.add_reaction('👍')
 				await vetoMessage.add_reaction('👎')
 				def check(reaction, user):
