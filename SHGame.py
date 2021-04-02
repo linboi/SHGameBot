@@ -168,12 +168,14 @@ class SecretHitlerGame:
 			if player.isHitler:
 				await self.gameOver('L') 	# If Hitler is killed, the liberals win
 			## This is a temp fix for a bug, marking players as dead rather than removing them is probably the right solution
-			#idxOfRemovedPlayer = 0
-			#for idx, p in enumerate(self.players):
-			#	if p == player:
-			#		idxOfRemovedPlayer = idx
-			#if idxOfRemovedPlayer >= self.presidentTracker:
-			#	self.presidentTracker = self.presidentTracker - 1
+			idxOfRemovedPlayer = 0
+			found = False
+			for idx, p in enumerate(self.players):
+				if p == player:
+					idxOfRemovedPlayer = idx
+					found = True
+			if (idxOfRemovedPlayer <= self.presidentTracker) and (self.presidentTracker != 0) and found:
+				self.presidentTracker = self.presidentTracker - 1
 			self.players.remove(player)
 		elif power == "LWIN":
 			await self.gameOver('L')
@@ -183,7 +185,7 @@ class SecretHitlerGame:
 			return
 		# Maybe put 'FWIN' and 'LWIN' here instead of being part of gameLoop()
 		await self.gameLoop(nextPres)
-
+		
 	async def vote(self, pres, chanc):
 		msg = "Vote to elect president: " + pres.discordUser.display_name + " with chancellor: " + chanc.discordUser.display_name
 		votes = await asyncio.gather(*[self.recPlayerVote(p, msg) for p in self.players])
